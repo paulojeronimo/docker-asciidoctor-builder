@@ -1,7 +1,17 @@
 #!/usr/bin/env bash
 set -eou pipefail
+
 cd "`dirname "$0"`/.."
-build_dir=build
+echo "Base dir is \"$PWD\""
+source ./build.conf 2> /dev/null || echo "$PWD/build.conf not found"
+build_dir=${build_dir:-build}
+
+docker-asciidoctor() {
+  docker run -e TZ=America/Sao_Paulo -it --rm \
+    -v "$PWD":/documents \
+    asciidoctor/docker-asciidoctor "$@"
+}
+
 html() {
   local tag
   while [ "${1:-}" ]; do
@@ -23,16 +33,18 @@ html() {
     esac
     shift || break
   done
-  docker-asciidoctor -D $build_dir README.adoc -o index.html
+  docker-asciidoctor asciidoctor -D $build_dir README.adoc -o index.html
+  ! [ -d outputs ] || rsync -a outputs $build_dir/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
     git stash pop &> /dev/null || :
   fi
 }
+
 gh-pages() {
   [ -d $build_dir ] || { echo "\"$build_dir\" directory does not exists!"; return 1; }
   echo "Publish the contents in \"$build_dir\" to GitHub Pages ..."
-  local remote_repo=`git config --get remote.origin.url`
+  local remote_repo=${remote_repo:-`git config --get remote.origin.url`}
   local msg="Published at `date`"
   cd $build_dir
   git init
@@ -40,10 +52,12 @@ gh-pages() {
   git commit -m "$msg"
   git push --force $remote_repo master:gh-pages
 }
+
 usage() {
   echo "Usage: $0 <[html] [-<t|-tag> <tag>]|gh-pages>"
   exit 0
 }
+
 if [ "${1:-}" ]; then
   [[ $1 =~ ^- ]] && { task=html; set -- html "$@"; } || task=$1
 else
