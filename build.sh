@@ -19,8 +19,17 @@ docker-asciidoctor() {
 
 html() {
   local tag
+  local attrs
+  local production=false
   while [ "${1:-}" ]; do
     case "$1" in
+      -a)
+        shift
+        [ "${1:-}" ] && attrs="${attrs:-} -a $1" || {
+          echo "Please, specify the a value!"
+          exit 1
+        }
+      ;;
       -t|--tag)
         shift
         [ "${1:-}" ] && tag=$1 || {
@@ -35,11 +44,15 @@ html() {
         }
         git checkout $tag &> /dev/null
         build_dir=$build_dir/$tag
+      ;;
+      -p) production=true;;
     esac
     shift || break
   done
-  echo "Building $adoc ..."
-  docker-asciidoctor asciidoctor -D $build_dir $adoc -o index.html
+  echo -n "Building $adoc "
+  $production && echo "for production ..." || echo "for development ..."
+  if ! $production && ! [ "${attrs:-}" ]; then attrs="-a env-localhost"; fi
+  docker-asciidoctor asciidoctor -D $build_dir ${attrs:-} $adoc -o index.html
   ! [ -d outputs ] || rsync -a outputs $build_dir/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
@@ -67,7 +80,10 @@ if [ "${1:-}" ]; then
   [[ $1 =~ ^- ]] && { task=html; set -- html "$@"; } || task=$1
 else
   task=html
+
 fi
 shift || :
 type $task &> /dev/null || usage
 $task ${@:-}
+
+# vim: et ts=2 sw=2
