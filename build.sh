@@ -1,10 +1,15 @@
 #!/usr/bin/env bash
 set -eou pipefail
 
-cd "`dirname "$0"`/.."
-echo "Base dir is \"$PWD\""
-source ./build.conf 2> /dev/null || echo "$PWD/build.conf not found"
-build_dir=${build_dir:-build}
+BASE_DIR=`cd "$(dirname "$0")/.."; pwd`
+BUILDER_DIR=`basename "$(cd "$(dirname "$0")"; pwd)"`
+
+cd "$BASE_DIR"
+echo "Base dir is \"$PWD\"."
+
+config=build.conf
+source ./$config 2> /dev/null || echo "WARNING: config file not found! Using \"$BUILDER_DIR/$config\"."
+source "$BUILDER_DIR"/$config
 
 docker-asciidoctor() {
   docker run -e TZ=America/Sao_Paulo -it --rm \
@@ -33,7 +38,8 @@ html() {
     esac
     shift || break
   done
-  docker-asciidoctor asciidoctor -D $build_dir README.adoc -o index.html
+  echo "Building $adoc ..."
+  docker-asciidoctor asciidoctor -D $build_dir $adoc -o index.html
   ! [ -d outputs ] || rsync -a outputs $build_dir/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
@@ -44,7 +50,6 @@ html() {
 gh-pages() {
   [ -d $build_dir ] || { echo "\"$build_dir\" directory does not exists!"; return 1; }
   echo "Publish the contents in \"$build_dir\" to GitHub Pages ..."
-  local remote_repo=${remote_repo:-`git config --get remote.origin.url`}
   local msg="Published at `date`"
   cd $build_dir
   git init
