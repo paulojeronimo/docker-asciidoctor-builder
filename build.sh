@@ -12,6 +12,10 @@ source ./$config 2> /dev/null || echo "WARNING: config file not found! Using \"$
 source "$BUILDER_DIR"/$config
 
 docker-asciidoctor() {
+  case $1 in
+    asciidoctor) echo "Generating HTML version ...";;
+    asciidoctor-pdf) echo "Generating PDF version ...";;
+  esac
   docker run -e TZ=America/Sao_Paulo -it --rm \
     -v "$PWD":/documents \
     asciidoctor/docker-asciidoctor "$@"
@@ -53,6 +57,7 @@ html() {
   $production && echo "for production ..." || echo "for development ..."
   if ! $production && ! [ "${attrs:-}" ]; then attrs="-a env-localhost"; fi
   docker-asciidoctor asciidoctor -D $build_dir ${attrs:-} $adoc -o index.html
+  ! $GENERATE_PDF || docker-asciidoctor asciidoctor-pdf -D $build_dir ${attrs:-} $adoc -o `basename $BASE_DIR`.pdf
   ! [ -d outputs ] || rsync -a outputs $build_dir/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
