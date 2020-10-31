@@ -8,8 +8,10 @@ cd "$BASE_DIR"
 echo "Base dir is \"$PWD\"."
 
 config=build.conf
-source ./$config 2> /dev/null || echo "WARNING: config file not found! Using \"$BUILDER_DIR/$config\"."
-source "$BUILDER_DIR"/$config
+source ./$config 2> /dev/null && echo "Using customized configuration: \"./$config\"" || {
+  echo "Using default configuration: \"$BUILDER_DIR/$config\"."
+  source "$BUILDER_DIR"/$config 
+}
 
 docker-asciidoctor() {
   case $1 in
