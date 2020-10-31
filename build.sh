@@ -49,18 +49,18 @@ html() {
           exit 1
         }
         git checkout $tag &> /dev/null
-        build_dir=$build_dir/$tag
+        BUILD_DIR=$BUILD_DIR/$tag
       ;;
       -p) production=true;;
     esac
     shift || break
   done
-  echo -n "Building $adoc "
+  echo -n "Building $ADOC "
   $production && echo "for production ..." || echo "for development ..."
   if ! $production && ! [ "${attrs:-}" ]; then attrs="-a env-localhost"; fi
-  docker-asciidoctor asciidoctor -D $build_dir ${attrs:-} $adoc -o index.html
-  ! $GENERATE_PDF || docker-asciidoctor asciidoctor-pdf -D $build_dir ${attrs:-} $adoc -o `basename $BASE_DIR`.pdf
-  ! [ -d outputs ] || rsync -a outputs $build_dir/
+  docker-asciidoctor asciidoctor -D $BUILD_DIR ${attrs:-} $ADOC -o index.html
+  ! $GENERATE_PDF || docker-asciidoctor asciidoctor-pdf -D $BUILD_DIR ${attrs:-} $ADOC -o `basename $BASE_DIR`.pdf
+  ! [ -d outputs ] || rsync -a outputs $BUILD_DIR/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
     git stash pop &> /dev/null || :
@@ -68,14 +68,23 @@ html() {
 }
 
 gh-pages() {
-  [ -d $build_dir ] || { echo "\"$build_dir\" directory does not exists!"; return 1; }
-  echo "Publish the contents in \"$build_dir\" to GitHub Pages ..."
+  [ -d $BUILD_DIR ] || { echo "\"$BUILD_DIR\" directory does not exists!"; return 1; }
+  echo "Publish the contents in \"$BUILD_DIR\" to GitHub Pages ..."
   local msg="Published at `date`"
-  cd $build_dir
+  cd $BUILD_DIR
   git init
   git add -A
   git commit -m "$msg"
-  git push --force $remote_repo master:gh-pages
+  git push --force $REMOTE_REPO master:gh-pages
+}
+
+serve() {
+  local serve_bin
+  serve_bin=$(which serve 2> /dev/null) || {
+    echo "The utility \"serve\" was not found in PATH!"
+    return 1
+  }
+  $serve_bin -l $SERVE_PORT $BUILD_DIR
 }
 
 usage() {
