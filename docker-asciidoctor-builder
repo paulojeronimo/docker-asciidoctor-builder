@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -eou pipefail
 
-BASE_DIR=`cd "$(dirname "$0")/.."; pwd`
-BUILDER_DIR=`basename "$(cd "$(dirname "$0")"; pwd)"`
+BASE_DIR=${BASE_DIR:-$PWD}
+BUILDER_DIR=`cd "$(dirname "$0")"; pwd -P`
 
 cd "$BASE_DIR"
 echo "Base dir is \"$PWD\"."
 
 config=build.conf
-source ./$config 2> /dev/null && echo "Using customized configuration: \"./$config\"" || {
-  echo "Using default configuration: \"$BUILDER_DIR/$config\"."
-  source "$BUILDER_DIR"/$config 
+defaults=~/.${0##*/}
+source ./$config 2>&- && {
+  echo "File \"$config\" found. Merging it with defaults ($defaults)."
+} || {
+  echo "File \"$config\" not found. Using defaults ($defaults)."
 }
+[ -f "$BUILDER_DIR" ] || (cd; ln -sf ${BUILDER_DIR##$HOME/}/$config $defaults)
+source "$defaults"
 
 docker-asciidoctor() {
   case $1 in
@@ -55,12 +59,16 @@ html() {
     esac
     shift || break
   done
+  [ -f "$ADOC" ] || {
+    >&2 echo "File \"$ADOC\" not found!"
+    exit 1
+  }
   echo -n "Building $ADOC "
   $production && echo "for production ..." || echo "for development ..."
   if ! $production && ! [ "${attrs:-}" ]; then attrs="-a env-localhost"; fi
-  docker-asciidoctor asciidoctor -D $BUILD_DIR ${attrs:-} $ADOC -o index.html
-  ! $GENERATE_PDF || docker-asciidoctor asciidoctor-pdf -D $BUILD_DIR ${attrs:-} $ADOC -o `basename $BASE_DIR`.pdf
-  ! [ -d outputs ] || rsync -a outputs $BUILD_DIR/
+  docker-asciidoctor asciidoctor -D "$BUILD_DIR" ${attrs:-} "$ADOC" -o index.html
+  ! $GENERATE_PDF || docker-asciidoctor asciidoctor-pdf -D "$BUILD_DIR" ${attrs:-} "$ADOC" -o "`basename "$BASE_DIR"`.pdf"
+  ! [ -d outputs ] || rsync -a outputs "$BUILD_DIR"/
   if [ "${tag:-}" ]; then
     git checkout master &> /dev/null
     git stash pop &> /dev/null || :
@@ -71,7 +79,7 @@ gh-pages() {
   [ -d $BUILD_DIR ] || { echo "\"$BUILD_DIR\" directory does not exists!"; return 1; }
   echo "Publish the contents in \"$BUILD_DIR\" to GitHub Pages ..."
   local msg="Published at `date`"
-  cd $BUILD_DIR
+  cd "$BUILD_DIR"
   git init
   git add -A
   git commit -m "$msg"
@@ -84,7 +92,7 @@ serve() {
     echo "The utility \"serve\" was not found in PATH!"
     return 1
   }
-  $serve_bin -l $SERVE_PORT $BUILD_DIR
+  $serve_bin -l $SERVE_PORT "$BUILD_DIR"
 }
 
 usage() {
